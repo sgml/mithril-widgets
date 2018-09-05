@@ -1,60 +1,6 @@
 'use strict';
 
-// PART 1: add a couple useful methods to js data types.
-
-Object.defineProperty(Object.prototype, 'pop', {
-	writable: false,
-	configurable: false,
-	enumerable: false,
-	value: function (key) {  // Return the value and remove *key* from this
-		var value = this[key];
-		delete this[key];
-		return value;
-	}
-});
-
-if (!Array.prototype.contains) {
-	Object.defineProperty(Array.prototype, 'contains', {value: function (o) {
-		return this.indexOf(o) != -1;
-	}});
-}
-
-Object.defineProperty(Object.prototype, 'deepValue', {
-	writable: false,
-	configurable: false,
-	enumerable: false,
-	value: function (key) { // Example key: "person.address.street"
-		// Traverse this object to return the value of a structured key
-		const keyParts = key.split('\.'); // split *key* by dot
-		let val = this;
-		for (const k of keyParts)  {
-			val = val[k];
-			if (val === undefined) return undefined;
-		}
-		return val;
-	}
-});
-
-Object.defineProperty(Array.prototype, 'sortBy', {value: function (key, desc) {
-	return this.sort(function(a, b) {
-		let va = a.deepValue(key);
-		let vb = b.deepValue(key);
-		if (typeof va === "string") {
-			va = va.toLowerCase();
-		}
-		if (typeof vb === "string") {
-			vb = vb.toLowerCase();
-		}
-		if (desc) {
-			return (va > vb) ? -1 : ((va < vb) ? 1 : 0);
-		} else {
-			return (va < vb) ? -1 : ((va > vb) ? 1 : 0);
-		}
-	});
-}});
-
-
-// PART 2: Useful helper functions and services
+// Useful helper functions and services
 
 function readCookie(name) {
 	const nameEQ = name + "=";
@@ -67,13 +13,13 @@ function readCookie(name) {
 	return null;
 }
 
-const Unique = { // produce unique IDs
+export const Unique = { // produce unique IDs
 	n: 0,
 	next: () => ++Unique.n,
 	domID: () => '_' + Unique.next(),  // div IDs must not start with a number
 };
 
-class Event {
+export class Event {
 	constructor(name) {
 		this.observers = [];
 		if (name)  Event.index[name] = this;
@@ -136,7 +82,7 @@ Notification.levels = ['success', 'info', 'secondary', 'light', 'dark', 'warning
 Notification.speed = 90; // Takes one second to read 11 chars
 Notification.min = 3000; // but the minimum is 3 seconds
 
-var Notifier = { // A position:fixed component to display toasts
+export var Notifier = { // A position:fixed component to display toasts
 	history: [],
 	index: -1,
 	phase: 'off', // off, starting, on, fading out
@@ -223,7 +169,7 @@ var Notifier = { // A position:fixed component to display toasts
 };
 
 
-function request(d) {
+export function request(d) {
 	const self = this;
 	// Let user know a request is in progress and
 	// set the 'X-XSRF-Token' request header.
@@ -272,7 +218,7 @@ function request(d) {
 }
 
 
-class SimpleTable {  // The *rows* argument should be an array of arrays
+export class SimpleTable {  // The *rows* argument should be an array of arrays
 	constructor({headers=[], rows=[], classes='.table .table-bordered', caption=null}={}) {
 		this.headers = headers;
 		this.rows = rows;
@@ -291,7 +237,7 @@ class SimpleTable {  // The *rows* argument should be an array of arrays
 }
 
 
-class SortedTable {
+export class SortedTable {
 	// The constructor takes these params and sorts the data:
 	// classes: str,
 	// headers: [{key: sort_key, title: title}...],
@@ -348,7 +294,7 @@ class SortedTable {
 }
 
 
-class Select {
+export class Select {
 	constructor({groups=null, opts=null, css='', onChange=null}={}) {
 		if (!groups && !opts || groups && opts)  throw new Error(
 			"Pass either *groups* or *opts* to Select constructor.");
@@ -398,6 +344,8 @@ class MenuStrategy {
 		this.entry = entry;
 	}
 }
+
+
 class SelectNav extends MenuStrategy {
 	view(vnode) {
 		return m(
@@ -421,7 +369,9 @@ class SelectNav extends MenuStrategy {
 			entry.label);
 	}
 }
-class DropdownNav extends MenuStrategy { // An individual drop down menu
+
+
+export class DropdownNav extends MenuStrategy { // An individual drop down menu
 	constructor(entry, bootstrap=4) { // *entry* is a model of the menu and its children
 		super(entry);
 		this.id = Unique.domID();
@@ -498,7 +448,7 @@ class DropdownNav extends MenuStrategy { // An individual drop down menu
 }
 DropdownNav.instances = [];
 
-class NavMenu {
+export class NavMenu {
 	constructor(att, strategy=SelectNav, bootstrap=4) {
 		this.strategy = strategy;
 		this.permanent = att.permanent || [];
@@ -596,7 +546,7 @@ class NavMenu {
 }
 
 
-class SearchBox {
+export class SearchBox {
 	// User code can use the event: `searchBox.changed.subscribe(fn);`
 	constructor(attrs) {
 		this.showNoResults = false;
@@ -641,7 +591,7 @@ class SearchBox {
 }
 
 
-class FormField { // A bootstrap 4 form field, maybe with associated label
+export class FormField { // A bootstrap 4 form field, maybe with associated label
 	constructor(label, input) {
 		this.input = input;
 		if (!input.id)  input.id = Unique.domID();
@@ -661,7 +611,7 @@ class FormField { // A bootstrap 4 form field, maybe with associated label
 }
 
 
-class PhoneField {
+export class PhoneField {
 	// User code can use the event: `phonefield.changed.subscribe(fn);`
 	constructor({value='', name='', placeholder='', css='', type='tel'}={}) {
 		this.id = Unique.domID();
@@ -690,7 +640,7 @@ class PhoneField {
 }
 
 
-class ContentEditable { // TODO Observer in order to POST edited content
+export class ContentEditable { // TODO Observer in order to POST edited content
 	// from http://jsbin.com/vihuyi/edit?js,output
 	constructor(text) {
 		this._text = text;
@@ -710,7 +660,7 @@ class ContentEditable { // TODO Observer in order to POST edited content
 }
 
 
-class ServerCommands {
+export class ServerCommands {
 	constructor(context) {
 		this.context = context;
 		this.commands = {};

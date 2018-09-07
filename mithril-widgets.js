@@ -187,8 +187,8 @@ export function request(d) {
 		}
 	};
 	m.request(d).then(function (response) {
-		if (response.commands && response.commands.length && serverCommands) {
-			serverCommands.runAll(response.commands);
+		if (response.commands && response.commands.length && d.serverCommands) {
+			d.serverCommands.runAll(response.commands);
 		}
 		if (handle)  notifier.rmStatus(handle);
 		if (ret.callback) {

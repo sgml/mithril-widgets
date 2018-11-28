@@ -1,6 +1,61 @@
 'use strict';
 
-// Useful helper functions and services
+// PART 1: add a couple useful methods to js data types.
+
+Object.defineProperty(Object.prototype, 'pop', {
+	writable: false,
+	configurable: false,
+	enumerable: false,
+	value: function (key) {  // Return the value and remove *key* from this
+		var value = this[key];
+		delete this[key];
+		return value;
+	}
+});
+
+if (!Array.prototype.contains) {
+	Object.defineProperty(Array.prototype, 'contains', {value: function (o) {
+		return this.indexOf(o) != -1;
+	}});
+}
+
+Object.defineProperty(Object.prototype, 'deepValue', {
+	writable: false,
+	configurable: false,
+	enumerable: false,
+	value: function (key) { // Example key: "person.address.street"
+		// Traverse this object to return the value of a structured key
+		const keyParts = key.split('\.'); // split *key* by dot
+		let val = this;
+		for (const k of keyParts)  {
+			val = val[k];
+			if (val === undefined) return undefined;
+			else if (val === null) return null;
+		}
+		return val;
+	}
+});
+
+Object.defineProperty(Array.prototype, 'sortBy', {value: function (key, desc) {
+	return this.sort(function(a, b) {
+		let va = a.deepValue(key);
+		let vb = b.deepValue(key);
+		if (typeof va === "string") {
+			va = va.toLowerCase();
+		}
+		if (typeof vb === "string") {
+			vb = vb.toLowerCase();
+		}
+		if (desc) {
+			return (va > vb) ? -1 : ((va < vb) ? 1 : 0);
+		} else {
+			return (va < vb) ? -1 : ((va > vb) ? 1 : 0);
+		}
+	});
+}});
+
+
+// PART 2: Useful helper functions and services
 
 function readCookie(name) {
 	const nameEQ = name + "=";
@@ -51,12 +106,16 @@ class UL { // Unordered list
 }
 
 
-class Notification {  // TODO icons
+class Notification {
 	constructor(d) {
 		Object.assign(this, d);  // shallow copy
 		if (!this.level)  this.level = 'warning';
-		if (Notification.levels.indexOf(this.level) === -1)
+		if (Notification.levels.indexOf(this.level) === -1) {
 			console.error('Message with wrong level:', this);
+			this.icon = Notification.icons.info;
+		} else {
+			this.icon = Notification.icons[this.level];
+		}
 	}
 	get readingTime() {
 		// Estimate the time one takes to read some text
@@ -73,12 +132,22 @@ class Notification {  // TODO icons
 		// but Mithril makes it an object whose prototype is this instance.
 		const self = vnode.tag;
 		return m('div.notification', [
-			self.title ? m('h5', self.title) : null,
-			self.html ? m.trust(self.html) : self.plain,
+			self.title ? m('h5', [
+				m(`span.fas.fa-${self.icon}`),
+				m('span', self.title),
+			]) : null,
+			self.html ? m.trust(self.html) : m('div', self.plain)
 		]);
 	}
 }
-Notification.levels = ['success', 'info', 'secondary', 'light', 'dark', 'warning', 'danger'];
+// Bootstrap also has 'secondary', 'light' and 'dark', but these are not considered useful graveness levels.
+Notification.levels = ['success', 'info', 'warning', 'danger']; // mind the order!
+Notification.icons = {
+	success: 'check-circle',
+	info: 'info-circle',
+	warning: 'exclamation',
+	danger: 'exclamation-circle',
+};
 Notification.speed = 90; // Takes one second to read 11 chars
 Notification.min = 3000; // but the minimum is 3 seconds
 
@@ -147,8 +216,8 @@ export var Notifier = { // A position:fixed component to display toasts
 		var content, level;
 		if (dis) { // display status
 			var statstrings = Object.values(this.statuses);
-			content = m('small', statstrings.length ?
-				m(new UL(null, statstrings)) : 'Notifications');
+			content = m('small.btn.btn-sm', statstrings.length ?
+				m(new UL(null, statstrings)) : [m('span.fas.fa-bell'),' Notifications']);
 			level = 'dark';
 		} else { // display a message
 			const cur = this.getCurrent();
@@ -157,19 +226,20 @@ export var Notifier = { // A position:fixed component to display toasts
 		}
 		const cls = ['starting', 'fading out'].contains(this.phase) ? '.fade-out' : '';
 		const arr = [];
-		if (!dis) {
-			arr.push(m('button.btn.btn-secondary.btn-sm[title=Dismiss]', {onclick: Notifier.next}, '×'));
-		}
+		const buttons = [];
 		if (this.index > (dis ? -1 : 0)) {
-			arr.push(m('button.btn.btn-secondary.btn-sm[title=Previous]', {onclick: Notifier.prev}, '<'));
+			buttons.push(m('button.btn.btn-secondary.btn-sm[title=Previous]', {onclick: Notifier.prev}, '<'));
+		}
+		if (!dis) {
+			buttons.push(m('button.btn.btn-secondary.btn-sm[title=Dismiss]', {onclick: Notifier.next}, '×'));
 		}
 		arr.push(content);
-		return m(`.notifier${cls}.alert.alert-${level}[role="alert"]`, arr);
+		return m(`.flex.notifier${cls}.alert.alert-${level}[role="alert"]`, [arr, buttons.length ? m('div.buttons', buttons): null]);
 	},
 };
 
 
-export function request(d) {
+export function request(d) { // jshint ignore:line
 	const self = this;
 	// Let user know a request is in progress and
 	// set the 'X-XSRF-Token' request header.
@@ -184,6 +254,7 @@ export function request(d) {
 			return this;
 		}, catch: function (errorCallback) {
 			this.errorCallback = errorCallback;
+			return this;
 		}
 	};
 	m.request(d).then(function (response) {
@@ -196,18 +267,23 @@ export function request(d) {
 		}
 		return response;
 	}).catch(function (e) {
-		console.error(e);
-		const msg = {level: 'danger'};
-		if (e.error_title)  msg.title = e.error_title;
-		if (e.error_msg)  msg.plain = e.error_msg;
-		if (e.error_title || e.error_msg)  {
-		} else if (typeof e === 'string') {
-			msg.plain = e;
-		} else {
-			msg.title = 'Unexpected error';
-			msg.plain = String(e);
+		if (e.toasts) {  // for kerno-like return values
+			for (const obj of e.toasts) {
+				notifier.add(obj);
+			}
+		} else {  // for bag-like return values
+			const msg = {level: 'danger'};
+			if (e.error_title)  msg.title = e.error_title;
+			if (e.error_msg)  msg.plain = e.error_msg;
+			if (e.error_title || e.error_msg)  {
+			} else if (typeof e === 'string') {  // for returned strings
+				msg.plain = e;
+			} else {  // for obscure return values
+				msg.title = 'Error communicating with server';
+				msg.plain = String(e);
+			}
+			notifier.add(msg);
 		}
-		notifier.add(msg);
 		if (handle)  notifier.rmStatus(handle);
 		if (e.redirect)  window.location = e.redirect;
 		if (ret.errorCallback) {
@@ -218,7 +294,8 @@ export function request(d) {
 }
 
 
-export class SimpleTable {  // The *rows* argument should be an array of arrays
+export class SimpleTable { // jshint ignore:line
+	// The *rows* argument should be an array of arrays
 	constructor({headers=[], rows=[], classes='.table .table-bordered', caption=null}={}) {
 		this.headers = headers;
 		this.rows = rows;
@@ -237,7 +314,7 @@ export class SimpleTable {  // The *rows* argument should be an array of arrays
 }
 
 
-export class SortedTable {
+export class SortedTable { // jshint ignore:line
 	// The constructor takes these params and sorts the data:
 	// classes: str,
 	// headers: [{key: sort_key, title: title}...],
@@ -294,7 +371,7 @@ export class SortedTable {
 }
 
 
-export class Select {
+export class Select { // jshint ignore:line
 	constructor({groups=null, opts=null, css='', onChange=null}={}) {
 		if (!groups && !opts || groups && opts)  throw new Error(
 			"Pass either *groups* or *opts* to Select constructor.");
@@ -347,7 +424,7 @@ class MenuStrategy {
 
 
 class SelectNav extends MenuStrategy {
-	view(vnode) {
+	view() {
 		return m(
 			"select", {
 				onchange: m.withAttr('value', (url) => window.location = url),
@@ -448,7 +525,8 @@ export class DropdownNav extends MenuStrategy { // An individual drop down menu
 }
 DropdownNav.instances = [];
 
-export class NavMenu {
+
+export class NavMenu { // jshint ignore:line
 	constructor(att, strategy=SelectNav, bootstrap=4) {
 		this.strategy = strategy;
 		this.permanent = att.permanent || [];
@@ -505,7 +583,7 @@ export class NavMenu {
 		const self = this;
 		return [
 			m(".navbar-header", {
-				onclick: function (e) {
+				onclick: function () {
 					self.burgerMenuClick.broadcast(self);
 				},
 			}, m(`button.navbar-toggler.navbar-toggle.collapsed[aria-controls='navbarSupportedContent'][aria-expanded='${this.burgerMenuShow}'][aria-label='Toggle navigation'][data-target='#navbarSupportedContent'][data-toggle='collapse'][type='button']`, this.getHamburgerIcon())
@@ -546,7 +624,7 @@ export class NavMenu {
 }
 
 
-export class SearchBox {
+export class SearchBox { // jshint ignore:line
 	// User code can use the event: `searchBox.changed.subscribe(fn);`
 	constructor(attrs) {
 		this.showNoResults = false;
@@ -591,7 +669,8 @@ export class SearchBox {
 }
 
 
-export class FormField { // A bootstrap 4 form field, maybe with associated label
+// A bootstrap 4 form field, maybe with associated label
+export class FormField { // jshint ignore:line
 	constructor(label, input) {
 		this.input = input;
 		if (!input.id)  input.id = Unique.domID();
@@ -611,7 +690,7 @@ export class FormField { // A bootstrap 4 form field, maybe with associated labe
 }
 
 
-export class PhoneField {
+export class PhoneField { // jshint ignore:line
 	// User code can use the event: `phonefield.changed.subscribe(fn);`
 	constructor({value='', name='', placeholder='', css='', type='tel'}={}) {
 		this.id = Unique.domID();
@@ -640,7 +719,8 @@ export class PhoneField {
 }
 
 
-export class ContentEditable { // TODO Observer in order to POST edited content
+export class ContentEditable { // jshint ignore:line
+	// TODO Observer in order to POST edited content
 	// from http://jsbin.com/vihuyi/edit?js,output
 	constructor(text) {
 		this._text = text;
@@ -660,7 +740,7 @@ export class ContentEditable { // TODO Observer in order to POST edited content
 }
 
 
-export class ServerCommands {
+export class ServerCommands { // jshint ignore:line
 	constructor(context) {
 		this.context = context;
 		this.commands = {};
